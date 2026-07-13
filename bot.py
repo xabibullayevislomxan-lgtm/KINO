@@ -27,24 +27,33 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Admin panel tugmalari
+# ---------- Tugma matnlari ----------
 BTN_STATS = "📊 Statistika"
 BTN_ADD_MOVIE = "🎬 Kino joylash"
+BTN_ADD_SERIES = "📺 Serial joylash"
+BTN_FIND_CODES = "🔍 Kino kodlarini topish"
+
+# Admin uchun 2x2 klaviatura
 ADMIN_KEYBOARD = ReplyKeyboardMarkup(
-    [[BTN_STATS, BTN_ADD_MOVIE]], resize_keyboard=True
+    [[BTN_STATS, BTN_ADD_MOVIE], [BTN_ADD_SERIES, BTN_FIND_CODES]],
+    resize_keyboard=True,
 )
 
-# Kino qo'shish suhbati uchun holatlar
+# Oddiy foydalanuvchi uchun klaviatura
+USER_KEYBOARD = ReplyKeyboardMarkup([[BTN_FIND_CODES]], resize_keyboard=True)
+
+# Kino qo'shish suhbati holatlari
 WAITING_VIDEO, WAITING_CODE = range(2)
+
+# Serial qo'shish suhbati holatlari
+SERIES_CODE, SERIES_TITLE, SERIES_EP_NUM, SERIES_EP_VIDEO, SERIES_CONTINUE = range(2, 7)
 
 
 # ---------- Obuna tekshirish ----------
 
 def build_channels_keyboard() -> InlineKeyboardMarkup:
     """Kanal tugmalarini 2 tadan yonma-yon joylaydi."""
-    buttons = [
-        InlineKeyboardButton(ch["name"], url=ch["url"]) for ch in CHANNELS
-    ]
+    buttons = [InlineKeyboardButton(ch["name"], url=ch["url"]) for ch in CHANNELS]
     rows = [buttons[i : i + 2] for i in range(0, len(buttons), 2)]
     rows.append([InlineKeyboardButton("✅ Obunani tekshirish", callback_data="check_sub")])
     return InlineKeyboardMarkup(rows)
@@ -54,7 +63,6 @@ async def is_subscribed(user_id: int, context: ContextTypes.DEFAULT_TYPE) -> boo
     for ch in CHANNELS:
         chat_id = ch["id"]
         if not chat_id:
-            # ID sozlanmagan bo'lsa, tekshirib bo'lmaydi — o'tkazib yuboramiz
             continue
         try:
             member = await context.bot.get_chat_member(chat_id, user_id)
@@ -105,7 +113,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if await is_subscribed(user.id, context):
         await update.message.reply_text(
-            "✅ Xush kelibsiz! Endi tayyorsiz, kino kodini yuboring."
+            f"Assalomu alaykum, <b>{user.first_name}</b>! 🎬\n\n"
+            f"Kino kodini yuboring.",
+            parse_mode=ParseMode.HTML,
+            reply_markup=USER_KEYBOARD,
         )
     else:
         await send_subscribe_prompt(update)
@@ -117,8 +128,12 @@ async def check_subscription_callback(update: Update, context: ContextTypes.DEFA
     await query.answer()
 
     if await is_subscribed(user.id, context):
-        await query.edit_message_text(
-            "✅ Obuna tasdiqlandi! Endi tayyorsiz, kino kodini yuboring."
+        await query.edit_message_text("✅ Obuna tasdiqlandi!")
+        await query.message.reply_text(
+            f"Assalomu alaykum, <b>{user.first_name}</b>! 🎬\n\n"
+            f"Kino kodini yuboring.",
+            parse_mode=ParseMode.HTML,
+            reply_markup=USER_KEYBOARD,
         )
     else:
         await query.answer(
@@ -126,7 +141,50 @@ async def check_subscription_callback(update: Update, context: ContextTypes.DEFA
         )
 
 
-# ---------- Kino kodini qabul qilish (oddiy foydalanuvchi) ----------
+# ---------- Serial qismlarini tanlash (foydalanuvchi tomonidan) ----------
+
+def build_episodes_keyboard(series_code: str, numbers: list) -> InlineKeyboardMarkup:
+    buttons = [
+        InlineKeyboardButton(f"{n}-qism", callback_data=f"ep:{series_code}:{n}")
+        for n in numbers
+    ]
+    rows = [buttons[i : i + 3] for i in range(0, len(buttons), 3)]
+    return InlineKeyboardMarkup(rows)
+
+
+async def send_episode_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    _, series_code, ep_num = query.data.split(":")
+    file_id = db.get_episode(series_code, int(ep_num))
+    if file_id:
+        await query.message.reply_video(video=file_id, caption=f"{ep_num}-qism")
+    else:
+        await query.answer("Qism topilmadi.", show_alert=True)
+
+
+# ---------- Kino kodlarini topish (hammaga) ----------
+
+async def show_codes(update: Update):
+    movies = db.list_all_movies()
+    series = db.list_all_series()
+
+    lines = []
+    if movies:
+        lines.append("🎬 <b>Kinolar:</b>")
+        lines.append(", ".join(movies))
+    if series:
+        if lines:
+            lines.append("")
+        lines.append("📺 <b>Seriallar:</b>")
+        for code, title in series:
+            lines.append(f"{code} — {title}")
+
+    text = "\n".join(lines) if lines else "Hozircha hech narsa qo'shilmagan."
+    await update.message.reply_text(text, parse_mode=ParseMode.HTML)
+
+
+# ---------- Kino/serial kodini qabul qilish ----------
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -142,6 +200,10 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return WAITING_VIDEO
 
+    if text == BTN_FIND_CODES:
+        await show_codes(update)
+        return
+
     if not await is_subscribed(user.id, context):
         await send_subscribe_prompt(update)
         return
@@ -150,10 +212,24 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if movie:
         file_id, caption = movie
         await update.message.reply_video(video=file_id, caption=caption or None)
-    else:
-        await update.message.reply_text(
-            "❌ Bunday kodli kino topilmadi. Kodni tekshirib qayta yuboring."
-        )
+        return
+
+    series_title = db.get_series(text)
+    if series_title:
+        numbers = db.get_episode_numbers(text)
+        if numbers:
+            await update.message.reply_text(
+                f"📺 <b>{series_title}</b>\nQaysi qismni ko'rmoqchisiz?",
+                parse_mode=ParseMode.HTML,
+                reply_markup=build_episodes_keyboard(text, numbers),
+            )
+        else:
+            await update.message.reply_text("Bu serialga hali qism qo'shilmagan.")
+        return
+
+    await update.message.reply_text(
+        "❌ Bunday kodli kino yoki serial topilmadi. Kodni tekshirib qayta yuboring."
+    )
 
 
 # ---------- Admin: statistika ----------
@@ -167,7 +243,7 @@ async def show_stats(update: Update):
     await update.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=ADMIN_KEYBOARD)
 
 
-# ---------- Admin: kino qo'shish (ConversationHandler) ----------
+# ---------- Admin: kino qo'shish ----------
 
 async def receive_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message.video:
@@ -202,9 +278,85 @@ async def cancel_add_movie(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
+# ---------- Admin: serial qo'shish ----------
+
+async def start_add_series(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "📺 Serial kodini kiriting (masalan: 5):", reply_markup=ReplyKeyboardRemove()
+    )
+    return SERIES_CODE
+
+
+async def receive_series_code(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["series_code"] = update.message.text.strip()
+    await update.message.reply_text("Serial nomini kiriting (masalan: Ertak podshosi):")
+    return SERIES_TITLE
+
+
+async def receive_series_title(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    code = context.user_data["series_code"]
+    title = update.message.text.strip()
+    db.add_series(code, title)
+    await update.message.reply_text("Nechinchi qism ekanini kiriting (masalan: 1):")
+    return SERIES_EP_NUM
+
+
+async def receive_episode_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text.strip()
+    if not text.isdigit():
+        await update.message.reply_text("Iltimos, faqat raqam kiriting (masalan: 1).")
+        return SERIES_EP_NUM
+    context.user_data["episode_number"] = int(text)
+    await update.message.reply_text(f"{text}-qism videosini yuboring:")
+    return SERIES_EP_VIDEO
+
+
+async def receive_episode_video(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message.video:
+        await update.message.reply_text("Iltimos, video fayl yuboring.")
+        return SERIES_EP_VIDEO
+
+    code = context.user_data["series_code"]
+    ep_num = context.user_data["episode_number"]
+    db.add_episode(code, ep_num, update.message.video.file_id)
+
+    keyboard = InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton("➕ Yana qism qo'shish", callback_data="series_continue"),
+                InlineKeyboardButton("✅ Tugatish", callback_data="series_finish"),
+            ]
+        ]
+    )
+    await update.message.reply_text(f"✅ {ep_num}-qism saqlandi!", reply_markup=keyboard)
+    return SERIES_CONTINUE
+
+
+async def handle_series_continue(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == "series_continue":
+        await query.edit_message_text("Nechinchi qism ekanini kiriting (masalan: 2):")
+        return SERIES_EP_NUM
+
+    await query.edit_message_text("✅ Serial saqlandi!")
+    await query.message.reply_text("Admin panel:", reply_markup=ADMIN_KEYBOARD)
+    context.user_data.pop("series_code", None)
+    context.user_data.pop("episode_number", None)
+    return ConversationHandler.END
+
+
+async def cancel_add_series(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data.pop("series_code", None)
+    context.user_data.pop("episode_number", None)
+    await update.message.reply_text("Bekor qilindi.", reply_markup=ADMIN_KEYBOARD)
+    return ConversationHandler.END
+
+
 def main():
     if not BOT_TOKEN:
-        raise RuntimeError("BOT_TOKEN sozlanmagan! .env faylini tekshiring.")
+        raise RuntimeError("BOT_TOKEN sozlanmagan!")
 
     db.init_db()
 
@@ -219,9 +371,23 @@ def main():
         fallbacks=[CommandHandler("cancel", cancel_add_movie)],
     )
 
+    add_series_conv = ConversationHandler(
+        entry_points=[MessageHandler(filters.Regex(f"^{BTN_ADD_SERIES}$"), start_add_series)],
+        states={
+            SERIES_CODE: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_series_code)],
+            SERIES_TITLE: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_series_title)],
+            SERIES_EP_NUM: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_episode_number)],
+            SERIES_EP_VIDEO: [MessageHandler(filters.VIDEO, receive_episode_video)],
+            SERIES_CONTINUE: [CallbackQueryHandler(handle_series_continue, pattern="^series_(continue|finish)$")],
+        },
+        fallbacks=[CommandHandler("cancel", cancel_add_series)],
+    )
+
     app.add_handler(CommandHandler("start", start))
     app.add_handler(add_movie_conv)
+    app.add_handler(add_series_conv)
     app.add_handler(CallbackQueryHandler(check_subscription_callback, pattern="^check_sub$"))
+    app.add_handler(CallbackQueryHandler(send_episode_callback, pattern="^ep:"))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
     logger.info("Bot ishga tushdi...")
