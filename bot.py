@@ -165,23 +165,17 @@ async def send_episode_callback(update: Update, context: ContextTypes.DEFAULT_TY
 
 # ---------- Kino kodlarini topish (hammaga) ----------
 
+CODES_CHANNEL_URL = "https://t.me/shoxona_kinolar"
+
+
 async def show_codes(update: Update):
-    movies = db.list_all_movies()
-    series = db.list_all_series()
-
-    lines = []
-    if movies:
-        lines.append("🎬 <b>Kinolar:</b>")
-        lines.append(", ".join(movies))
-    if series:
-        if lines:
-            lines.append("")
-        lines.append("📺 <b>Seriallar:</b>")
-        for code, title in series:
-            lines.append(f"{code} — {title}")
-
-    text = "\n".join(lines) if lines else "Hozircha hech narsa qo'shilmagan."
-    await update.message.reply_text(text, parse_mode=ParseMode.HTML)
+    keyboard = InlineKeyboardMarkup(
+        [[InlineKeyboardButton("📂 Kino kodlari kanaliga o'tish", url=CODES_CHANNEL_URL)]]
+    )
+    await update.message.reply_text(
+        "Barcha kino kodlarini shu kanaldan topishingiz mumkin 👇",
+        reply_markup=keyboard,
+    )
 
 
 # ---------- Kino/serial kodini qabul qilish ----------
