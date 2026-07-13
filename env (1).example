@@ -1,0 +1,26 @@
+# @BotFather dan olingan token
+BOT_TOKEN=
+
+# Sizning Telegram ID raqamingiz (@userinfobot orqali oling)
+ADMIN_ID=
+
+# Kanallar (nomlarini xohlagancha o'zgartirishingiz mumkin)
+CHANNEL_1_NAME=1-kanal
+CHANNEL_1_URL=https://t.me/+DK-59zvtQ-5lYmUy
+CHANNEL_1_ID=
+
+CHANNEL_2_NAME=2-kanal
+CHANNEL_2_URL=https://t.me/+4MqyHPn_QDYxMTFi
+CHANNEL_2_ID=
+
+CHANNEL_3_NAME=3-kanal
+CHANNEL_3_URL=https://t.me/+LB8c33Lp9DBkYzAy
+CHANNEL_3_ID=
+
+CHANNEL_4_NAME=4-kanal
+CHANNEL_4_URL=https://t.me/kinoolamiuzbe
+CHANNEL_4_ID=@kinoolamiuzbe
+
+CHANNEL_5_NAME=5-kanal
+CHANNEL_5_URL=https://t.me/sunniyintellekt_darslar
+CHANNEL_5_ID=@sunniyintellekt_darslar

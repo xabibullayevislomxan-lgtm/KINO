@@ -1,0 +1,24 @@
+BOT_TOKEN=8330850150:AAFPLD0a0w_uSCsKJulotZgVjC8W8VvmnO4
+
+# Bu yerga o'z Telegram ID raqamingizni yozing (@userinfobot orqali oling)
+ADMIN_ID=
+
+CHANNEL_1_NAME=1-kanal
+CHANNEL_1_URL=https://t.me/+DK-59zvtQ-5lYmUy
+CHANNEL_1_ID=-1004482528213
+
+CHANNEL_2_NAME=2-kanal
+CHANNEL_2_URL=https://t.me/+4MqyHPn_QDYxMTFi
+CHANNEL_2_ID=-1004370993354
+
+CHANNEL_3_NAME=3-kanal
+CHANNEL_3_URL=https://t.me/+LB8c33Lp9DBkYzAy
+CHANNEL_3_ID=-1003983852781
+
+CHANNEL_4_NAME=4-kanal
+CHANNEL_4_URL=https://t.me/kinoolamiuzbe
+CHANNEL_4_ID=@kinoolamiuzbe
+
+CHANNEL_5_NAME=5-kanal
+CHANNEL_5_URL=https://t.me/sunniyintellekt_darslar
+CHANNEL_5_ID=@sunniyintellekt_darslar
