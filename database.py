@@ -25,6 +25,24 @@ def init_db():
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS series (
+                code TEXT PRIMARY KEY,
+                title TEXT
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS episodes (
+                series_code TEXT NOT NULL,
+                episode_number INTEGER NOT NULL,
+                file_id TEXT NOT NULL,
+                PRIMARY KEY (series_code, episode_number)
+            )
+            """
+        )
         conn.commit()
 
 
@@ -90,3 +108,69 @@ def count_users() -> int:
     with get_connection() as conn:
         cur = conn.execute("SELECT COUNT(*) FROM users")
         return cur.fetchone()[0]
+
+
+# ---------- Seriallar ----------
+
+def add_series(code: str, title: str):
+    """Yangi serial qo'shadi (yoki nomini yangilaydi)."""
+    with get_connection() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO series (code, title) VALUES (?, ?)",
+            (code, title),
+        )
+        conn.commit()
+
+
+def get_series(code: str):
+    """Serial nomini qaytaradi yoki None."""
+    with get_connection() as conn:
+        cur = conn.execute("SELECT title FROM series WHERE code = ?", (code,))
+        row = cur.fetchone()
+        return row[0] if row else None
+
+
+def add_episode(series_code: str, episode_number: int, file_id: str):
+    with get_connection() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO episodes (series_code, episode_number, file_id) "
+            "VALUES (?, ?, ?)",
+            (series_code, episode_number, file_id),
+        )
+        conn.commit()
+
+
+def get_episode(series_code: str, episode_number: int):
+    """Bitta qism file_id sini qaytaradi yoki None."""
+    with get_connection() as conn:
+        cur = conn.execute(
+            "SELECT file_id FROM episodes WHERE series_code = ? AND episode_number = ?",
+            (series_code, episode_number),
+        )
+        row = cur.fetchone()
+        return row[0] if row else None
+
+
+def get_episode_numbers(series_code: str):
+    """Shu serialning barcha qism raqamlarini (tartiblangan) qaytaradi."""
+    with get_connection() as conn:
+        cur = conn.execute(
+            "SELECT episode_number FROM episodes WHERE series_code = ? "
+            "ORDER BY episode_number",
+            (series_code,),
+        )
+        return [row[0] for row in cur.fetchall()]
+
+
+def list_all_movies():
+    """Barcha oddiy kino kodlarini qaytaradi."""
+    with get_connection() as conn:
+        cur = conn.execute("SELECT code FROM movies ORDER BY code")
+        return [row[0] for row in cur.fetchall()]
+
+
+def list_all_series():
+    """Barcha seriallarni (code, title) qaytaradi."""
+    with get_connection() as conn:
+        cur = conn.execute("SELECT code, title FROM series ORDER BY code")
+        return cur.fetchall()
